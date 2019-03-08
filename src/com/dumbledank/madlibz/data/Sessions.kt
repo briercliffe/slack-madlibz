@@ -8,6 +8,7 @@ object Sessions : UUIDTable() {
     val user: Column<String> = varchar("user", 20)
     val channel: Column<String> = varchar("channel", 20)
     val madlib = reference("madlib", Madlibs)
+    val responses: Column<String> = text("responses")
     val active: Column<Boolean> = bool("active").default(true)
 }
 
@@ -17,5 +18,6 @@ class SessionEntity(id: EntityID<UUID>): UUIDEntity(id) {
     var user by Sessions.user
     var channel by Sessions.channel
     var madlib by MadlibEntity referencedOn Sessions.madlib
+    var responses by Sessions.responses
     var active by Sessions.active
 }

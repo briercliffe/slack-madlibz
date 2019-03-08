@@ -1,8 +1,12 @@
 package com.dumbledank.madlibz
 
+import com.dumbledank.madlibz.data.MadlibContent
 import com.dumbledank.madlibz.event.AppMentionEvent
+import com.dumbledank.madlibz.event.ChannelMessageEvent
 import com.dumbledank.madlibz.response.AppMentionResponse
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.treeToValue
 import io.ktor.application.Application
 import io.ktor.application.call
@@ -43,24 +47,72 @@ fun Application.main() {
         jackson {}
     }
 
+    suspend fun handleAppMention(eventJson: JsonNode) {
+        val event = jacksonObjectMapper().treeToValue<AppMentionEvent>(eventJson)
+        println(event)
+        val activeSession = dataService.getActiveSessionsForUserInChannel(event.user, event.channel)
+            .firstOrNull() ?: dataService.createNewSession(event.user, event.channel)
+        val madlibEntity = dataService.readMadlibForSession(activeSession)
+        val madlib = jacksonObjectMapper().readValue<MadlibContent>(madlibEntity.contentJson)
+        val responses = jacksonObjectMapper().readValue<List<String>>(activeSession.responses).toMutableList()
+
+        val nextPrompt = madlibService.getNextPrompt(madlib, responses)
+        val slackResponse = "<@${event.user}>, " + madlibService.getRandomPromptFlavor(nextPrompt)
+
+        client.post<String> {
+            url(URL("https://slack.com/api/chat.postMessage"))
+            contentType(ContentType.Application.Json)
+            header("Authorization", "Bearer $botToken")
+            body = AppMentionResponse(event.channel, slackResponse)
+        }
+    }
+
+    suspend fun handleChannelMessage(eventJson: JsonNode) {
+        val event = jacksonObjectMapper().treeToValue<ChannelMessageEvent>(eventJson)
+        println(event)
+        if (event.subtype != null || event.text == null || event.text!!.startsWith("<@")) {
+            return
+        }
+
+        val activeSession = dataService.getActiveSessionsForUserInChannel(event.user!!, event.channel).firstOrNull()
+        if (activeSession != null) {
+            val madlibEntity = dataService.readMadlibForSession(activeSession)
+            val madlib = jacksonObjectMapper().readValue<MadlibContent>(madlibEntity.contentJson)
+            val responses = jacksonObjectMapper().readValue<List<String>>(activeSession.responses).toMutableList()
+
+            if (!event.text.isNullOrBlank()) {
+                responses.add(event.text!!)
+                dataService.addResponse(activeSession, jacksonObjectMapper().writeValueAsString(responses))
+
+                val slackResponse = if (madlibService.isComplete(madlib, responses)) {
+                    dataService.markSessionComplete(activeSession)
+                    madlibService.assembleResult(madlib.text, responses)
+                } else {
+                    val nextPrompt = madlibService.getNextPrompt(madlib, responses)
+                    "<@${event.user}>, " + madlibService.getRandomPromptFlavor(nextPrompt)
+                }
+
+                client.post<String> {
+                    url(URL("https://slack.com/api/chat.postMessage"))
+                    contentType(ContentType.Application.Json)
+                    header("Authorization", "Bearer $botToken")
+                    body = AppMentionResponse(event.channel, slackResponse)
+                }
+            }
+        }
+    }
+
     routing {
         post("/") {
-            call.respond(200)
             val data = jacksonObjectMapper().readTree(call.receiveStream())
+            if (data["type"].textValue() == "url_verification") {
+                call.respondText(data["challenge"].textValue())
+                return@post
+            }
+            call.respond(200)
             when (data["event"]["type"].textValue()) {
-                "app_mention" -> {
-                    val event = jacksonObjectMapper().treeToValue<AppMentionEvent>(data["event"])
-                    val activeSession = dataService.getActiveSessionsForUserInChannel(event.user, event.channel)
-                        .firstOrNull() ?: dataService.createNewSession(event.user, event.channel)
-                    val madlib = dataService.readMadlibForSession(activeSession)
-
-                    client.post<String> {
-                        url(URL("https://slack.com/api/chat.postMessage"))
-                        contentType(ContentType.Application.Json)
-                        header("Authorization", "Bearer $botToken")
-                        body = AppMentionResponse(event.channel, "New Madlib by <@${madlib.author}>")
-                    }
-                }
+                "app_mention" -> handleAppMention(data["event"])
+                "message" -> handleChannelMessage(data["event"])
             }
         }
         post("/create") {
@@ -75,6 +127,8 @@ fun Application.main() {
             }
         }
     }
+
+
 }
 
 @KtorExperimentalAPI

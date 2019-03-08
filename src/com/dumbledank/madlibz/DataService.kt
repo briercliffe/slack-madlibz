@@ -41,10 +41,23 @@ class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: S
                 this.channel = channel
                 this.active = true
                 this.madlib = nextMadlib
+                this.responses = "[]"
             }
             session.readValues
             session.madlib.readValues
             session
+        }
+    }
+
+    fun addResponse(session: SessionEntity, newResponseJson: String) {
+        transaction {
+            session.responses = newResponseJson
+        }
+    }
+
+    fun markSessionComplete(session: SessionEntity) {
+        transaction {
+            session.active = false
         }
     }
 
