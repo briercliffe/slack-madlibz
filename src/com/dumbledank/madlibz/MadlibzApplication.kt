@@ -25,7 +25,10 @@ import io.ktor.routing.routing
 import io.ktor.util.KtorExperimentalAPI
 import java.net.URL
 
+@KtorExperimentalAPI
 fun Application.main() {
+    val dataService = DataService(dbUrl, dbDriver, dbUser, dbPassword)
+
     val client = HttpClient(Apache) {
         install(JsonFeature) {
             serializer = JacksonSerializer()
@@ -43,11 +46,15 @@ fun Application.main() {
             when (data["event"]["type"].textValue()) {
                 "app_mention" -> {
                     val event = jacksonObjectMapper().treeToValue<AppMentionEvent>(data["event"])
+                    val activeSession = dataService.getActiveSessionsForUserInChannel(event.user, event.channel)
+                        .firstOrNull() ?: dataService.createNewSession(event.user, event.channel)
+                    val madlib = dataService.readMadlibForSession(activeSession)
+
                     client.post<String> {
                         url(URL("https://slack.com/api/chat.postMessage"))
                         contentType(ContentType.Application.Json)
                         header("Authorization", "Bearer $botToken")
-                        body = AppMentionResponse(event.channel, "Hello <@${event.user}>! This works!")
+                        body = AppMentionResponse(event.channel, "Active Session ${madlib.contentJson}")
                     }
                 }
             }
@@ -57,3 +64,11 @@ fun Application.main() {
 
 @KtorExperimentalAPI
 val Application.botToken get() = environment.config.property("slack.bot.token").getString()
+@KtorExperimentalAPI
+val Application.dbUrl get() = environment.config.property("database.url").getString()
+@KtorExperimentalAPI
+val Application.dbDriver get() = environment.config.property("database.driver").getString()
+@KtorExperimentalAPI
+val Application.dbUser get() = environment.config.property("database.username").getString()
+@KtorExperimentalAPI
+val Application.dbPassword get() = environment.config.property("database.password").getString()

@@ -39,5 +39,9 @@ dependencies {
     compile "io.ktor:ktor-client-apache:$ktor_version"
     compile "io.ktor:ktor-client-json:$ktor_version"
     compile "io.ktor:ktor-client-jackson:$ktor_version"
+
+    compile "org.jetbrains.exposed:exposed:$exposed_version"
+    compile "org.postgresql:postgresql:42.2.5"
+
     testCompile "io.ktor:ktor-server-tests:$ktor_version"
 }
