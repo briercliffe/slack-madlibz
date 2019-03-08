@@ -24,6 +24,15 @@ class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: S
         }
     }
 
+    fun createMadlib(user: String, contentJson: String) {
+        transaction {
+            MadlibEntity.new {
+                this.author = user
+                this.contentJson = contentJson
+            }
+        }
+    }
+
     fun createNewSession(user: String, channel: String): SessionEntity {
         val nextMadlib = findRandomUnseenMadlib(user) ?: findRandomMadlib()
         return transaction {
