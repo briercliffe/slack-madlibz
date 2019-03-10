@@ -62,15 +62,14 @@ class ChannelMessageLambdaHandler(
 
     private fun handleAppMention(eventJson: JsonNode, logger: LambdaLogger) {
         val event = jacksonObjectMapper().treeToValue<AppMentionEvent>(eventJson)
-        val activeSession = dataService.getActiveSessionsForUserInChannel(event.user, event.channel)
-            .firstOrNull() ?: dataService.createNewSession(event.user, event.channel)
+        val activeSession = dataService.createNewSession(event.user, event.channel, event.ts)
         val madlibEntity = dataService.readMadlibForSession(activeSession)
         val madlib = jacksonObjectMapper().readValue<MadlibContent>(madlibEntity.contentJson)
         val responses = jacksonObjectMapper().readValue<List<String>>(activeSession.responses).toMutableList()
 
         val nextPrompt = madlibService.getNextPrompt(madlib, responses)
         val slackResponse = "<@${event.user}>, " + madlibService.getRandomPromptFlavor(nextPrompt)
-        val packagedResponse = AppMentionResponse(event.channel, slackResponse)
+        val packagedResponse = AppMentionResponse(event.channel, slackResponse, event.ts)
         runBlocking {
             notifySlack(packagedResponse)
         }
@@ -83,7 +82,8 @@ class ChannelMessageLambdaHandler(
             return
         }
 
-        val activeSession = dataService.getActiveSessionsForUserInChannel(event.user!!, event.channel).firstOrNull()
+        var thread: String? = event.threadTs ?: event.ts
+        val activeSession = dataService.getActiveSessionsForUserInChannel(event.user!!, event.channel, thread!!).firstOrNull()
         if (activeSession != null) {
             val madlibEntity = dataService.readMadlibForSession(activeSession)
             val madlib = jacksonObjectMapper().readValue<MadlibContent>(madlibEntity.contentJson)
@@ -95,13 +95,15 @@ class ChannelMessageLambdaHandler(
 
                 val slackResponse = if (madlibService.isComplete(madlib, responses)) {
                     dataService.markSessionComplete(activeSession)
+                    thread = null
                     madlibService.assembleResult(madlib.text, responses)
                 } else {
                     val nextPrompt = madlibService.getNextPrompt(madlib, responses)
                     "<@${event.user}>, " + madlibService.getRandomPromptFlavor(nextPrompt)
                 }
 
-                val packagedResponse = AppMentionResponse(event.channel, slackResponse)
+                val packagedResponse = AppMentionResponse(event.channel, slackResponse, thread)
+
                 runBlocking {
                     notifySlack(packagedResponse)
                 }

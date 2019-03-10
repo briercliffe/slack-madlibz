@@ -10,6 +10,7 @@ object Sessions : UUIDTable() {
     val madlib = reference("madlib", Madlibs)
     val responses: Column<String> = text("responses")
     val active: Column<Boolean> = bool("active").default(true)
+    val thread: Column<String> = text("thread").default("")
 }
 
 class SessionEntity(id: EntityID<UUID>): UUIDEntity(id) {
@@ -20,4 +21,5 @@ class SessionEntity(id: EntityID<UUID>): UUIDEntity(id) {
     var madlib by MadlibEntity referencedOn Sessions.madlib
     var responses by Sessions.responses
     var active by Sessions.active
+    var thread by Sessions.thread
 }

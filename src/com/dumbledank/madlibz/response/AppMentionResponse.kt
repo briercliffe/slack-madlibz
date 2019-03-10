@@ -6,5 +6,7 @@ data class AppMentionResponse(
     @JsonProperty("channel")
     var channel: String,
     @JsonProperty("text")
-    var text: String
+    var text: String,
+    @JsonProperty("thread_ts")
+    var threadTs: String? = null
 )

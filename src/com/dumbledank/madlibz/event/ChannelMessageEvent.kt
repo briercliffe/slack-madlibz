@@ -15,6 +15,8 @@ data class ChannelMessageEvent(
     var text: String?,
     @JsonProperty("ts")
     var ts: String,
+    @JsonProperty("thread_ts")
+    var threadTs: String?,
     @JsonProperty("type")
     var type: String,
     @JsonProperty("subtype")

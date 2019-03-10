@@ -33,7 +33,7 @@ class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: S
         }
     }
 
-    fun createNewSession(user: String, channel: String): SessionEntity {
+    fun createNewSession(user: String, channel: String, thread: String): SessionEntity {
         val nextMadlib = findRandomUnseenMadlib(user) ?: findRandomMadlib()
         return transaction {
             val session = SessionEntity.new {
@@ -42,6 +42,7 @@ class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: S
                 this.active = true
                 this.madlib = nextMadlib
                 this.responses = "[]"
+                this.thread = thread
             }
             session.readValues
             session.madlib.readValues
@@ -61,10 +62,10 @@ class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: S
         }
     }
 
-    fun getActiveSessionsForUserInChannel(user: String, channel: String): List<SessionEntity> {
+    fun getActiveSessionsForUserInChannel(user: String, channel: String, threadTs: String): List<SessionEntity> {
         return transaction {
             SessionEntity.find {
-                (Sessions.user eq user) and (Sessions.channel eq channel) and Sessions.active
+                (Sessions.user eq user) and (Sessions.channel eq channel) and Sessions.active and (Sessions.thread eq threadTs)
             }.toList()
         }
     }
