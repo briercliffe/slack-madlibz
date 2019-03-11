@@ -62,7 +62,7 @@ class ChannelMessageLambdaHandler(
 
     private fun handleAppMention(eventJson: JsonNode, logger: LambdaLogger) {
         val event = jacksonObjectMapper().treeToValue<AppMentionEvent>(eventJson)
-        val activeSession = dataService.createNewSession(event.user, event.channel, event.ts)
+        val activeSession = dataService.createNewSession(event.user, event.channel, event.ts, event.text.toLowerCase().contains("public"))
         val madlibEntity = dataService.readMadlibForSession(activeSession)
         val madlib = jacksonObjectMapper().readValue<MadlibContent>(madlibEntity.contentJson)
         val responses = jacksonObjectMapper().readValue<List<String>>(activeSession.responses).toMutableList()
@@ -83,8 +83,8 @@ class ChannelMessageLambdaHandler(
         }
 
         var thread: String? = event.threadTs ?: event.ts
-        val activeSession = dataService.getActiveSessionsForUserInChannel(event.user!!, event.channel, thread!!).firstOrNull()
-        if (activeSession != null) {
+        val activeSession = dataService.getActiveSessionsForUserInChannel(event.channel, thread!!).firstOrNull()
+        if (activeSession != null && (activeSession.public || activeSession.user == event.user)) {
             val madlibEntity = dataService.readMadlibForSession(activeSession)
             val madlib = jacksonObjectMapper().readValue<MadlibContent>(madlibEntity.contentJson)
             val responses = jacksonObjectMapper().readValue<List<String>>(activeSession.responses).toMutableList()
@@ -99,7 +99,11 @@ class ChannelMessageLambdaHandler(
                     madlibService.assembleResult(madlib.text, responses)
                 } else {
                     val nextPrompt = madlibService.getNextPrompt(madlib, responses)
-                    "<@${event.user}>, " + madlibService.getRandomPromptFlavor(nextPrompt)
+                    var responseText = ""
+                    if (!activeSession.public) {
+                        responseText += "<@${event.user}>, "
+                    }
+                    responseText + madlibService.getRandomPromptFlavor(nextPrompt)
                 }
 
                 val packagedResponse = AppMentionResponse(event.channel, slackResponse, thread)

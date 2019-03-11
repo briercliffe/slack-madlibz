@@ -11,6 +11,7 @@ object Sessions : UUIDTable() {
     val responses: Column<String> = text("responses")
     val active: Column<Boolean> = bool("active").default(true)
     val thread: Column<String> = text("thread").default("")
+    val public: Column<Boolean> = bool("public").default(false)
 }
 
 class SessionEntity(id: EntityID<UUID>): UUIDEntity(id) {
@@ -22,4 +23,5 @@ class SessionEntity(id: EntityID<UUID>): UUIDEntity(id) {
     var responses by Sessions.responses
     var active by Sessions.active
     var thread by Sessions.thread
+    var public by Sessions.public
 }

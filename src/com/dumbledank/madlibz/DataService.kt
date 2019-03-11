@@ -10,12 +10,6 @@ import org.jetbrains.exposed.sql.transactions.transaction
 class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: String) {
     init {
         Database.connect(dbUrl, dbDriver, dbUser, dbPassword)
-        transaction {
-            SchemaUtils.createMissingTablesAndColumns(Madlibs, Sessions)
-//            MadlibEntity.new {
-//                contentJson = "This is only a test"
-//            }
-        }
     }
 
     fun readMadlibForSession(session: SessionEntity): MadlibEntity {
@@ -33,7 +27,7 @@ class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: S
         }
     }
 
-    fun createNewSession(user: String, channel: String, thread: String): SessionEntity {
+    fun createNewSession(user: String, channel: String, thread: String, public: Boolean = false): SessionEntity {
         val nextMadlib = findRandomUnseenMadlib(user) ?: findRandomMadlib()
         return transaction {
             val session = SessionEntity.new {
@@ -43,6 +37,7 @@ class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: S
                 this.madlib = nextMadlib
                 this.responses = "[]"
                 this.thread = thread
+                this.public = public
             }
             session.readValues
             session.madlib.readValues
@@ -62,10 +57,10 @@ class DataService(dbUrl: String, dbDriver: String, dbUser: String, dbPassword: S
         }
     }
 
-    fun getActiveSessionsForUserInChannel(user: String, channel: String, threadTs: String): List<SessionEntity> {
+    fun getActiveSessionsForUserInChannel(channel: String, threadTs: String): List<SessionEntity> {
         return transaction {
             SessionEntity.find {
-                (Sessions.user eq user) and (Sessions.channel eq channel) and Sessions.active and (Sessions.thread eq threadTs)
+                (Sessions.channel eq channel) and Sessions.active and (Sessions.thread eq threadTs)
             }.toList()
         }
     }
